@@ -20,6 +20,26 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         
+        let localStream;
+        
+        async function solicitarPermisos() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                mostrarVideo(localStream);
+                document.getElementById("controls").style.display = "block";
+            } catch (error) {
+                alert("No se pudo acceder a la cámara/micrófono");
+            }
+        }
+        
+        function mostrarVideo(stream) {
+            let video = document.createElement("video");
+            video.srcObject = stream;
+            video.autoplay = true;
+            video.muted = true;
+            document.getElementById("videos").appendChild(video);
+        }
+        
         window.pedirIdSala = async function() {
             let roomId = prompt("Introduce el ID de la sala:");
             if (!roomId) return;
@@ -52,9 +72,26 @@
             onSnapshot(doc(db, "salas", roomId), (docSnap) => {
                 if (docSnap.exists()) {
                     let usuarios = docSnap.data().usuarios;
-                    actualizarVideos(usuarios);
+                    console.log("Usuarios en la sala:", usuarios);
                 }
             });
+        }
+        
+        window.toggleMic = function() {
+            let audioTrack = localStream.getAudioTracks()[0];
+            audioTrack.enabled = !audioTrack.enabled;
+            reproducirSonido();
+        };
+        
+        window.toggleCam = function() {
+            let videoTrack = localStream.getVideoTracks()[0];
+            videoTrack.enabled = !videoTrack.enabled;
+            reproducirSonido();
+        };
+        
+        function reproducirSonido() {
+            let audio = new Audio("https://www.soundjay.com/button/beep-07.wav");
+            audio.play();
         }
     </script>
     <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
