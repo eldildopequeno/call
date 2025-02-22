@@ -100,9 +100,9 @@
 
         // Muestra el ID generado en la página
         function generateAndDisplayId() {
-            const generatedId = generateId();
-            currentCallId = generatedId;
-            document.getElementById("callId").innerText = generatedId;
+            const generatedId = generateId(); // Genera un ID único
+            currentCallId = generatedId; // Asigna el ID generado a currentCallId
+            document.getElementById("callId").innerText = generatedId; // Muestra el ID en la página
         }
 
         // Inicia la llamada
