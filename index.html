@@ -49,12 +49,6 @@
         #startCallBtn:hover, #joinCallBtn:hover {
             background-color: #5a6fb4;
         }
-        #remoteAudio {
-            width: 100%;
-            max-width: 600px;
-            margin-top: 20px;
-            border-radius: 10px;
-        }
     </style>
     <script>
         // Configuración de Firebase
@@ -82,8 +76,6 @@
         <input type="text" id="inputCallId" placeholder="Ingrese ID para llamar">
         <button id="startCallBtn" onclick="startCall()">Crear llamada</button>
         <button id="joinCallBtn" onclick="joinCall()">Unirse a llamada</button>
-
-        <audio id="remoteAudio" controls autoplay></audio>
     </div>
 
     <script>
@@ -98,7 +90,7 @@
 
         // Guarda los datos de la llamada en Firebase
         function startCall() {
-            const callId = generateId(); // Genera un ID único para la llamada
+            const callId = generateId(); // ID único de la llamada
             currentCallId = callId;
             document.getElementById("callId").innerText = callId;  // Muestra el ID en la página
 
@@ -108,10 +100,9 @@
             // Guarda los datos de la llamada en Firebase
             callRef.set({
                 active: true,
-                userA: true, // Este es el usuario que crea la llamada
-                userB: false, // El usuario B aún no está en la llamada
-                createdAt: Date.now(), // Marca de tiempo
-                audioUrl: "", // Se añadirá la URL del audio cuando esté disponible
+                userA: true, // Usuario A está en la llamada
+                userB: false, // Usuario B aún no está
+                createdAt: Date.now(), // Marca de tiempo de creación
             }).then(() => {
                 console.log("Llamada creada con ID:", callId);
             }).catch(error => {
@@ -139,16 +130,8 @@
                         userB: true
                     });
 
-                    // Actualizar el audio
-                    callRefToJoin.update({
-                        audioUrl: "https://example.com/audio-url" // Esto es solo un ejemplo
-                    });
-
                     // Cambiar la interfaz para mostrar que el usuario se ha unido
                     alert("Te has unido a la llamada!");
-
-                    // Configurar el flujo de audio
-                    document.getElementById("remoteAudio").src = callData.audioUrl;
                     userJoined = true;
 
                 } else {
