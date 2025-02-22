@@ -22,8 +22,8 @@
         
         let localStream;
         let roomId = null;
-        let peers = {};
         let usuarioId;
+        const peerConnections = {};
         const peerConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
         
         async function solicitarPermisos() {
@@ -45,14 +45,11 @@
             document.getElementById("videos").appendChild(video);
         }
         
-        window.pedirIdSala = async function() {
-            roomId = prompt("Introduce el ID de la sala:");
+        window.crearSala = async function() {
+            roomId = prompt("Introduce un ID para la sala:");
             if (!roomId) return;
             let salaRef = doc(db, "salas", roomId);
-            let salaSnap = await getDoc(salaRef);
-            if (!salaSnap.exists()) {
-                await setDoc(salaRef, { usuarios: [], ofertas: {} });
-            }
+            await setDoc(salaRef, { usuarios: [] });
             joinRoom();
         };
         
@@ -75,23 +72,32 @@
             usuarioId = "usuario" + Math.floor(Math.random() * 1000);
             await updateDoc(salaRef, { usuarios: arrayUnion(usuarioId) });
             
-            peers[usuarioId] = new RTCPeerConnection(peerConfig);
-            localStream.getTracks().forEach(track => peers[usuarioId].addTrack(track, localStream));
-            
-            peers[usuarioId].onicecandidate = async event => {
-                if (event.candidate) {
-                    await updateDoc(salaRef, {
-                        [`ofertas.${usuarioId}`]: event.candidate.toJSON()
-                    });
-                }
-            };
-            
-            peers[usuarioId].ontrack = event => {
-                mostrarVideo(event.streams[0], usuarioId);
-            };
-            
-            escucharUsuarios(roomId, usuarioId);
+            conectarConUsuarios(salaRef);
         };
+        
+        function conectarConUsuarios(salaRef) {
+            onSnapshot(salaRef, (snapshot) => {
+                const data = snapshot.data();
+                const usuarios = data.usuarios || [];
+                
+                usuarios.forEach((usuario) => {
+                    if (usuario !== usuarioId && !peerConnections[usuario]) {
+                        iniciarConexion(usuario, salaRef);
+                    }
+                });
+            });
+        }
+        
+        function iniciarConexion(usuarioRemoto, salaRef) {
+            const peerConnection = new RTCPeerConnection(peerConfig);
+            peerConnections[usuarioRemoto] = peerConnection;
+            
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            
+            peerConnection.ontrack = (event) => {
+                mostrarVideo(event.streams[0], usuarioRemoto);
+            };
+        }
         
         window.leaveRoom = async function() {
             let salaRef = doc(db, "salas", roomId);
@@ -138,13 +144,7 @@
             padding: 15px 30px;
             margin: 10px;
             cursor: pointer;
-            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
             border-radius: 10px;
-            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.3);
-        }
-        button:hover {
-            transform: scale(1.1);
-            box-shadow: 0px 6px 10px rgba(0, 0, 0, 0.5);
         }
         #videos {
             display: flex;
@@ -157,7 +157,6 @@
             height: 200px;
             background: black;
             border-radius: 10px;
-            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5);
         }
     </style>
 </head>
@@ -165,10 +164,11 @@
     <h1>Videollamada</h1>
     <p id="roomInfo">No estás en una sala</p>
     <input id="roomId" placeholder="ID de sala">
+    <button onclick="crearSala()">Crear Sala</button>
     <button id="joinLeaveButton" onclick="joinRoom()">Unirse</button>
     <div id="controls" style="display: none;">
-        <button id="toggleMic" onclick="toggleMic()">Apagar Micrófono</button>
-        <button id="toggleCam" onclick="toggleCam()">Apagar Cámara</button>
+        <button onclick="toggleMic()">Apagar Micrófono</button>
+        <button onclick="toggleCam()">Apagar Cámara</button>
     </div>
     <div id="videos"></div>
 </body>
