@@ -36,7 +36,7 @@
             border: none;
             margin-bottom: 15px;
         }
-        #startCallBtn {
+        #startCallBtn, #joinCallBtn {
             background-color: #7289da;
             color: #fff;
             border: none;
@@ -44,8 +44,9 @@
             font-size: 16px;
             border-radius: 5px;
             cursor: pointer;
+            margin-top: 10px;
         }
-        #startCallBtn:hover {
+        #startCallBtn:hover, #joinCallBtn:hover {
             background-color: #5a6fb4;
         }
         #remoteAudio {
@@ -79,7 +80,7 @@
     <div id="callContainer">
         <p>Tu ID de llamada: <span id="callId"></span></p>
         <input type="text" id="inputCallId" placeholder="Ingrese ID para llamar">
-        <button id="startCallBtn" onclick="startCall()">Llamar</button>
+        <button id="startCallBtn" onclick="startCall()">Crear llamada</button>
         <button id="joinCallBtn" onclick="joinCall()">Unirse a llamada</button>
 
         <audio id="remoteAudio" controls autoplay></audio>
@@ -87,6 +88,8 @@
 
     <script>
         let currentCallId = null;
+        let callRef = null;
+        let userJoined = false;
 
         // Generación de ID único
         function generateId() {
@@ -100,13 +103,14 @@
             document.getElementById("callId").innerText = callId;  // Muestra el ID en la página
 
             // Referencia a la base de datos
-            const callRef = firebase.database().ref('calls/' + callId);
+            callRef = firebase.database().ref('calls/' + callId);
 
             // Guarda los datos de la llamada en Firebase
             callRef.set({
                 active: true,
-                generatedAt: Date.now(),  // Marca de tiempo cuando se genera la llamada
-                recordedAt: null          // Por ahora no está grabada
+                userA: true, // Este es el usuario que crea la llamada
+                userB: false, // El usuario B aún no está en la llamada
+                createdAt: Date.now() // Marca de tiempo
             }).then(() => {
                 console.log("Llamada creada con ID:", callId);
             }).catch(error => {
@@ -122,18 +126,28 @@
                 return;
             }
 
-            const callRef = firebase.database().ref('calls/' + inputCallId);
-            callRef.once('value', snapshot => {
+            // Verificar si la llamada está activa
+            const callRefToJoin = firebase.database().ref('calls/' + inputCallId);
+            callRefToJoin.once('value', snapshot => {
                 const callData = snapshot.val();
-                if (callData && callData.active) {
-                    console.log("Llamada encontrada. Conectando...");
+                if (callData && callData.active && !callData.userB) {
+                    console.log("Llamada encontrada. Uniendo a la llamada...");
 
-                    // Lógica para conectar el audio entre los usuarios
-                    // Aquí podrías implementar la lógica para compartir audio (por ejemplo, WebRTC, Firebase, etc.)
+                    // Actualizar el estado de la llamada para indicar que el usuario B se ha unido
+                    callRefToJoin.update({
+                        userB: true
+                    });
 
+                    // Ahora se puede permitir el acceso al audio
                     document.getElementById("remoteAudio").src = "url_del_audio"; // URL de la llamada en tiempo real
+
+                    // Marcar que el usuario se ha unido
+                    userJoined = true;
+
+                    // Cambiar la interfaz para mostrar que el usuario está unido
+                    alert("Te has unido a la llamada!");
                 } else {
-                    alert("El ID de llamada ingresado no es válido o está inactivo.");
+                    alert("El ID de llamada no es válido o la llamada ya está ocupada.");
                 }
             }).catch(error => {
                 console.error("Error al intentar unirse a la llamada:", error);
