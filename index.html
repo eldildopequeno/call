@@ -99,11 +99,11 @@
         async function pedirIdSala() {
             roomId = prompt("Introduce el ID de la sala:");
             if (!roomId) return;
-            await crearSala();
-        }
-        
-        async function crearSala() {
-            await setDoc(doc(db, "salas", roomId), { usuarios: [] });
+            let salaRef = doc(db, "salas", roomId);
+            let salaSnap = await getDoc(salaRef);
+            if (!salaSnap.exists()) {
+                await setDoc(salaRef, { usuarios: [] });
+            }
             joinRoom();
         }
         
