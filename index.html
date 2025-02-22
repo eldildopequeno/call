@@ -6,7 +6,7 @@
     <title>Videollamada con Firebase</title>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-firestore.js";
         
         const firebaseConfig = {
             apiKey: "AIzaSyCwBjwI7CtqsGbNyrEgAGBb6dxylfCeRsE",
@@ -28,7 +28,12 @@
         
         async function solicitarPermisos() {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                // Solicitamos permiso para la cámara y el micrófono, con resolución optimizada para iOS
+                localStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "user" },  // Preferir cámara frontal
+                    audio: true 
+                });
+
                 mostrarVideo(localStream, 'Tú');
                 document.getElementById("controls").style.display = "block";
             } catch (error) {
@@ -40,11 +45,11 @@
             let video = document.createElement("video");
             video.srcObject = stream;
             video.autoplay = true;
-            video.muted = usuario === 'Tú';
+            video.muted = usuario === 'Tú';  // No escuchar tu propio video
             video.setAttribute("data-usuario", usuario);
             document.getElementById("videos").appendChild(video);
         }
-        
+
         window.crearSala = async function() {
             roomId = prompt("Introduce un ID para la sala:");
             if (!roomId) return;
@@ -88,8 +93,8 @@
                 });
             });
         }
-        
-        function iniciarConexion(usuarioRemoto, salaRef) {
+
+        async function iniciarConexion(usuarioRemoto, salaRef) {
             const peerConnection = new RTCPeerConnection(peerConfig);
             peerConnections[usuarioRemoto] = peerConnection;
             
@@ -104,8 +109,16 @@
                     updateDoc(salaRef, { [`señales.${usuarioId}`]: arrayUnion(event.candidate.toJSON()) });
                 }
             };
+            
+            try {
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                updateDoc(salaRef, { [`señales.${usuarioRemoto}`]: arrayUnion(offer.toJSON()) });
+            } catch (error) {
+                console.error("Error creando oferta: ", error);
+            }
         }
-        
+
         window.enviarMensaje = async function() {
             let mensaje = document.getElementById("chatInput").value;
             if (!mensaje) return;
@@ -128,16 +141,90 @@
             });
         }
     </script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #2f3136;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        h1 {
+            color: #7289da;
+            margin-bottom: 20px;
+        }
+
+        .container {
+            text-align: center;
+            background-color: #292b2f;
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 600px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        input, button {
+            padding: 10px;
+            margin: 10px;
+            border-radius: 5px;
+            border: 1px solid #7289da;
+            background-color: #40444b;
+            color: white;
+        }
+
+        button:hover {
+            background-color: #7289da;
+        }
+
+        #videos {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            margin-top: 20px;
+        }
+
+        video {
+            width: 45%;
+            border-radius: 10px;
+            margin: 5px;
+        }
+
+        #chatBox {
+            max-height: 300px;
+            overflow-y: scroll;
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #2c2f33;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        #chatBox p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        #chatInput {
+            width: 80%;
+        }
+    </style>
 </head>
 <body>
-    <h1>Videollamada</h1>
-    <p id="roomInfo">No estás en una sala</p>
-    <input id="roomId" placeholder="ID de sala">
-    <button onclick="crearSala()">Crear Sala</button>
-    <button id="joinLeaveButton" onclick="joinRoom()">Unirse</button>
-    <div id="chatBox"></div>
-    <input id="chatInput" placeholder="Escribe un mensaje">
-    <button onclick="enviarMensaje()">Enviar</button>
-    <div id="videos"></div>
+    <div class="container">
+        <h1>Videollamada</h1>
+        <p id="roomInfo">No estás en una sala</p>
+        <input id="roomId" placeholder="ID de sala">
+        <button onclick="crearSala()">Crear Sala</button>
+        <button id="joinLeaveButton" onclick="joinRoom()">Unirse</button>
+        <div id="chatBox"></div>
+        <input id="chatInput" placeholder="Escribe un mensaje">
+        <button onclick="enviarMensaje()">Enviar</button>
+        <div id="videos"></div>
+    </div>
 </body>
 </html>
