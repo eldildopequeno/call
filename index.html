@@ -50,7 +50,7 @@
             let salaRef = doc(db, "salas", roomId);
             let salaSnap = await getDoc(salaRef);
             if (!salaSnap.exists()) {
-                await setDoc(salaRef, { usuarios: [] });
+                await setDoc(salaRef, { usuarios: [], ofertas: {} });
             }
             joinRoom(roomId);
         };
@@ -70,30 +70,52 @@
             
             let usuarioId = "usuario" + Math.floor(Math.random() * 1000);
             await updateDoc(salaRef, { usuarios: arrayUnion(usuarioId) });
+            
+            peers[usuarioId] = new RTCPeerConnection(peerConfig);
+            localStream.getTracks().forEach(track => peers[usuarioId].addTrack(track, localStream));
+            
+            peers[usuarioId].onicecandidate = async event => {
+                if (event.candidate) {
+                    await updateDoc(salaRef, {
+                        [`ofertas.${usuarioId}`]: event.candidate.toJSON()
+                    });
+                }
+            };
+            
+            peers[usuarioId].ontrack = event => {
+                mostrarVideo(event.streams[0], usuarioId);
+            };
+            
             escucharUsuarios(roomId, usuarioId);
         };
         
         function escucharUsuarios(roomId, usuarioId) {
-            onSnapshot(doc(db, "salas", roomId), (docSnap) => {
+            onSnapshot(doc(db, "salas", roomId), async (docSnap) => {
                 if (docSnap.exists()) {
                     let usuarios = docSnap.data().usuarios;
-                    usuarios.forEach(usuario => {
+                    let ofertas = docSnap.data().ofertas;
+                    
+                    usuarios.forEach(async usuario => {
                         if (usuario !== usuarioId && !peers[usuario]) {
-                            iniciarConexion(usuario);
+                            peers[usuario] = new RTCPeerConnection(peerConfig);
+                            localStream.getTracks().forEach(track => peers[usuario].addTrack(track, localStream));
+                            
+                            if (ofertas[usuario]) {
+                                await peers[usuario].setRemoteDescription(new RTCSessionDescription(ofertas[usuario]));
+                                let answer = await peers[usuario].createAnswer();
+                                await peers[usuario].setLocalDescription(answer);
+                                await updateDoc(doc(db, "salas", roomId), {
+                                    [`ofertas.${usuarioId}`]: answer.toJSON()
+                                });
+                            }
+                            
+                            peers[usuario].ontrack = event => {
+                                mostrarVideo(event.streams[0], usuario);
+                            };
                         }
                     });
                 }
             });
-        }
-        
-        function iniciarConexion(usuarioId) {
-            let peer = new RTCPeerConnection(peerConfig);
-            localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
-            peers[usuarioId] = peer;
-            
-            peer.ontrack = event => {
-                mostrarVideo(event.streams[0], usuarioId);
-            };
         }
         
         window.toggleMic = function() {
