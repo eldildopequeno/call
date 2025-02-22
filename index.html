@@ -117,7 +117,7 @@
             document.getElementById("roomInfo").innerText = "Sala ID: " + roomId;
             await solicitarPermisos();
             
-            await updateDoc(salaRef, { usuarios: arrayUnion(roomId) });
+            await updateDoc(salaRef, { usuarios: arrayUnion("usuario" + Math.floor(Math.random() * 1000)) });
             escucharUsuarios();
         }
         
