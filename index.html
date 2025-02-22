@@ -49,7 +49,7 @@
             roomId = prompt("Introduce un ID para la sala:");
             if (!roomId) return;
             let salaRef = doc(db, "salas", roomId);
-            await setDoc(salaRef, { usuarios: [] });
+            await setDoc(salaRef, { usuarios: [], chat: [] });
             joinRoom();
         };
         
@@ -73,6 +73,7 @@
             await updateDoc(salaRef, { usuarios: arrayUnion(usuarioId) });
             
             conectarConUsuarios(salaRef);
+            escucharChat(salaRef);
         };
         
         function conectarConUsuarios(salaRef) {
@@ -97,37 +98,30 @@
             peerConnection.ontrack = (event) => {
                 mostrarVideo(event.streams[0], usuarioRemoto);
             };
-            
-            peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    updateDoc(salaRef, { [`candidates_${usuarioId}`]: arrayUnion(event.candidate.toJSON()) });
-                }
-            };
         }
         
-        window.leaveRoom = async function() {
+        window.enviarMensaje = async function() {
+            let mensaje = document.getElementById("chatInput").value;
+            if (!mensaje) return;
             let salaRef = doc(db, "salas", roomId);
-            await updateDoc(salaRef, { usuarios: arrayRemove(usuarioId) });
-            
-            document.getElementById("roomInfo").innerText = "No estás en una sala";
-            document.getElementById("joinLeaveButton").innerText = "Unirse";
-            document.getElementById("joinLeaveButton").setAttribute("onclick", "joinRoom()");
-            
-            localStream.getTracks().forEach(track => track.stop());
-            document.getElementById("videos").innerHTML = "";
+            await updateDoc(salaRef, { chat: arrayUnion({ usuario: usuarioId, mensaje }) });
+            document.getElementById("chatInput").value = "";
         };
         
-        window.toggleMic = function() {
-            let audioTrack = localStream.getAudioTracks()[0];
-            audioTrack.enabled = !audioTrack.enabled;
-        };
-        
-        window.toggleCam = function() {
-            let videoTrack = localStream.getVideoTracks()[0];
-            videoTrack.enabled = !videoTrack.enabled;
-        };
+        function escucharChat(salaRef) {
+            onSnapshot(salaRef, (snapshot) => {
+                const data = snapshot.data();
+                const chat = data.chat || [];
+                let chatBox = document.getElementById("chatBox");
+                chatBox.innerHTML = "";
+                chat.forEach(msg => {
+                    let p = document.createElement("p");
+                    p.textContent = `${msg.usuario}: ${msg.mensaje}`;
+                    chatBox.appendChild(p);
+                });
+            });
+        }
     </script>
-    <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
     <style>
         body {
             background-color: #2c2c2c;
@@ -157,6 +151,14 @@
             background: black;
             border-radius: 10px;
         }
+        #chatBox {
+            background: #444;
+            padding: 10px;
+            margin: 10px;
+            border-radius: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body>
@@ -165,10 +167,9 @@
     <input id="roomId" placeholder="ID de sala">
     <button onclick="crearSala()">Crear Sala</button>
     <button id="joinLeaveButton" onclick="joinRoom()">Unirse</button>
-    <div id="controls" style="display: none;">
-        <button onclick="toggleMic()">Apagar Micrófono</button>
-        <button onclick="toggleCam()">Apagar Cámara</button>
-    </div>
+    <div id="chatBox"></div>
+    <input id="chatInput" placeholder="Escribe un mensaje">
+    <button onclick="enviarMensaje()">Enviar</button>
     <div id="videos"></div>
 </body>
 </html>
