@@ -6,7 +6,7 @@
     <title>Videollamada con Firebase</title>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-firestore.js";
         
         const firebaseConfig = {
             projectId: "llamada-5c0c6",
@@ -69,11 +69,12 @@
     <script>
         let localStream;
         let roomId;
+        let userName = prompt("Ingresa tu nombre:");
         
         async function solicitarPermisos() {
             let constraints = { video: true, audio: true };
             localStream = await navigator.mediaDevices.getUserMedia(constraints);
-            mostrarVideo(localStream, "local");
+            mostrarVideo(localStream, userName);
             document.getElementById("controls").style.display = "block";
         }
         
@@ -83,21 +84,62 @@
             video.srcObject = stream;
             video.autoplay = true;
             video.playsInline = true;
+            video.setAttribute("data-user", id);
             document.getElementById("videos").appendChild(video);
         }
         
         async function pedirIdSala() {
             roomId = prompt("Introduce el ID de la sala:");
             if (!roomId) return;
-            document.getElementById("roomInfo").innerText = "Sala ID: " + roomId;
+            await crearSala();
+        }
+        
+        async function crearSala() {
+            await setDoc(doc(db, "salas", roomId), { usuarios: [] });
             joinRoom();
         }
         
         async function joinRoom() {
             roomId = document.getElementById("roomId").value;
             if (!roomId) return alert("Ingresa un ID de sala válido");
+            let salaRef = doc(db, "salas", roomId);
+            let salaSnap = await getDoc(salaRef);
+            
+            if (!salaSnap.exists()) {
+                return alert("Sala no encontrada. Verifica el ID.");
+            }
+            
             document.getElementById("roomInfo").innerText = "Sala ID: " + roomId;
             await solicitarPermisos();
+            
+            await setDoc(salaRef, { usuarios: [...salaSnap.data().usuarios, userName] }, { merge: true });
+            escucharUsuarios();
+        }
+        
+        function escucharUsuarios() {
+            onSnapshot(doc(db, "salas", roomId), (docSnap) => {
+                if (docSnap.exists()) {
+                    let usuarios = docSnap.data().usuarios;
+                    actualizarVideos(usuarios);
+                }
+            });
+        }
+        
+        function actualizarVideos(usuarios) {
+            document.getElementById("videos").innerHTML = "";
+            usuarios.forEach(user => {
+                if (user === userName) {
+                    mostrarVideo(localStream, user);
+                } else {
+                    let video = document.createElement("video");
+                    video.id = user;
+                    video.innerText = user;
+                    video.style.width = "300px";
+                    video.style.height = "200px";
+                    video.style.background = "gray";
+                    document.getElementById("videos").appendChild(video);
+                }
+            });
         }
         
         function toggleMic() {
