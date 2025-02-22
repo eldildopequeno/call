@@ -1,163 +1,100 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Llamadas con Firebase</title>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #2c2f36;
-            color: #fff;
-            margin: 0;
-            padding: 0;
-        }
-        header {
-            background-color: #36393f;
-            padding: 10px;
-            text-align: center;
-        }
-        #callContainer {
-            margin: 20px auto;
-            width: 90%;
-            max-width: 600px;
-            background-color: #3a3f44;
-            border-radius: 8px;
-            padding: 20px;
-            text-align: center;
-        }
-        #inputCallId {
-            width: 80%;
-            padding: 8px;
-            border-radius: 5px;
-            border: none;
-            margin-bottom: 15px;
-        }
-        #startCallBtn, #joinCallBtn {
-            background-color: #7289da;
-            color: #fff;
-            border: none;
-            padding: 10px 20px;
-            font-size: 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-        #startCallBtn:hover, #joinCallBtn:hover {
-            background-color: #5a6fb4;
-        }
-        #remoteAudio {
-            width: 100%;
-            max-width: 600px;
-            margin-top: 20px;
-            border-radius: 10px;
-        }
-    </style>
-    <script>
-        // Configuración de Firebase
-        const firebaseConfig = {
-            apiKey: "BKLyJFYREVkvnHCELpDH2sXCnJ6HA4KtZZ6Z_YOKQizNSVPDaeAGatCc-YOO81JWxGIJWTxP6mvTSW1jVCwoSWs", 
-            authDomain: "llamadas-20257.firebaseapp.com",
-            databaseURL: "https://llamadas-20257-default-rtdb.firebaseio.com",
-            projectId: "llamadas-20257",
-            storageBucket: "llamadas-20257.appspot.com",
-            messagingSenderId: "943167410469",
-            appId: "1:943167410469:web:XXXXXXXXXXXXX"
-        };
+let localStream;
+let remoteStream;
+let peerConnection;
+let isCalling = false;
+const config = {
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+};
 
-        // Inicializa Firebase
-        firebase.initializeApp(firebaseConfig);
-    </script>
-</head>
-<body>
-    <header>
-        <h1>Llamadas con Firebase</h1>
-    </header>
+// Función para iniciar la llamada
+function startCall() {
+    const callId = generateId(); 
+    currentCallId = callId;
+    document.getElementById("callId").innerText = callId;
 
-    <div id="callContainer">
-        <p>Tu ID de llamada: <span id="callId"></span></p>
-        <input type="text" id="inputCallId" placeholder="Ingrese ID para llamar">
-        <button id="startCallBtn" onclick="startCall()">Crear llamada</button>
-        <button id="joinCallBtn" onclick="joinCall()">Unirse a llamada</button>
+    // Obtiene el audio del micrófono local
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+            localStream = stream;
+            document.getElementById("remoteAudio").srcObject = stream; // Muestra el audio local (opcional)
 
-        <audio id="remoteAudio" controls autoplay></audio>
-    </div>
-
-    <script>
-        let currentCallId = null;
-        let callRef = null;
-        let userJoined = false;
-
-        // Generación de ID único
-        function generateId() {
-            return Math.random().toString(36).substring(2, 8).toUpperCase();
-        }
-
-        // Guarda los datos de la llamada en Firebase
-        function startCall() {
-            const callId = generateId(); // Genera un ID único para la llamada
-            currentCallId = callId;
-            document.getElementById("callId").innerText = callId;  // Muestra el ID en la página
-
-            // Referencia a la base de datos
-            callRef = firebase.database().ref('calls/' + callId);
-
-            // Guarda los datos de la llamada en Firebase
+            // Guarda la llamada en Firebase
+            const callRef = firebase.database().ref('calls/' + callId);
             callRef.set({
                 active: true,
-                userA: true, // Este es el usuario que crea la llamada
-                userB: false, // El usuario B aún no está en la llamada
-                createdAt: Date.now(), // Marca de tiempo
-                audioUrl: "", // Se añadirá la URL del audio cuando esté disponible
+                generatedAt: Date.now(),
+                recordedAt: null,
+                participants: {
+                    local: true
+                }
             }).then(() => {
                 console.log("Llamada creada con ID:", callId);
             }).catch(error => {
                 console.error("Error al crear llamada:", error);
             });
+        })
+        .catch(error => {
+            console.error("Error al obtener el audio:", error);
+        });
+}
+
+// Función para unirse a una llamada
+function joinCall() {
+    const inputCallId = document.getElementById("inputCallId").value;
+    if (!inputCallId) {
+        alert("Por favor, ingresa un ID de llamada.");
+        return;
+    }
+
+    const callRef = firebase.database().ref('calls/' + inputCallId);
+    callRef.once('value', snapshot => {
+        const callData = snapshot.val();
+        if (callData && callData.active) {
+            console.log("Llamada encontrada. Conectando...");
+
+            // Obtiene el audio del micrófono local
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    localStream = stream;
+
+                    // Crea la conexión WebRTC
+                    peerConnection = new RTCPeerConnection(config);
+
+                    // Enviar el audio local a través de la conexión
+                    peerConnection.addStream(localStream);
+
+                    // Cuando recibimos un stream remoto
+                    peerConnection.onaddstream = event => {
+                        remoteStream = event.stream;
+                        document.getElementById("remoteAudio").srcObject = remoteStream;
+                    };
+
+                    // Iniciar la señalización para WebRTC (esto debe ser manejado)
+                    // Esto podría hacerse a través de Firebase, enviando las ofertas, respuestas y candidatos ICE
+                    createOffer(peerConnection);
+                })
+                .catch(error => {
+                    console.error("Error al obtener el audio:", error);
+                });
+        } else {
+            alert("El ID de llamada ingresado no es válido o está inactivo.");
         }
+    }).catch(error => {
+        console.error("Error al intentar unirse a la llamada:", error);
+    });
+}
 
-        // Unirse a la llamada
-        function joinCall() {
-            const inputCallId = document.getElementById("inputCallId").value;
-            if (!inputCallId) {
-                alert("Por favor, ingresa un ID de llamada.");
-                return;
-            }
-
-            // Verificar si la llamada está activa
-            const callRefToJoin = firebase.database().ref('calls/' + inputCallId);
-            callRefToJoin.once('value', snapshot => {
-                const callData = snapshot.val();
-                if (callData && callData.active && !callData.userB) {
-                    console.log("Llamada encontrada. Uniendo a la llamada...");
-
-                    // Actualizar el estado de la llamada para indicar que el usuario B se ha unido
-                    callRefToJoin.update({
-                        userB: true
-                    });
-
-                    // Actualizar el audio
-                    callRefToJoin.update({
-                        audioUrl: "https://example.com/audio-url" // Esto es solo un ejemplo
-                    });
-
-                    // Cambiar la interfaz para mostrar que el usuario se ha unido
-                    alert("Te has unido a la llamada!");
-
-                    // Configurar el flujo de audio
-                    document.getElementById("remoteAudio").src = callData.audioUrl;
-                    userJoined = true;
-
-                } else {
-                    alert("El ID de llamada no es válido o la llamada ya está ocupada.");
-                }
-            }).catch(error => {
-                console.error("Error al intentar unirse a la llamada:", error);
-            });
-        }
-    </script>
-</body>
-</html>
+// Crear la oferta para WebRTC
+function createOffer(peerConnection) {
+    peerConnection.createOffer().then(offer => {
+        return peerConnection.setLocalDescription(offer);
+    }).then(() => {
+        // Enviar la oferta a través de Firebase
+        const callRef = firebase.database().ref('calls/' + currentCallId);
+        callRef.update({
+            offer: peerConnection.localDescription
+        });
+    }).catch(error => {
+        console.error("Error al crear la oferta WebRTC:", error);
+    });
+}
