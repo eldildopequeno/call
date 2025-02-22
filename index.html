@@ -76,10 +76,14 @@
         let userName = prompt("Ingresa tu nombre:");
         
         async function solicitarPermisos() {
-            let constraints = { video: true, audio: true };
-            localStream = await navigator.mediaDevices.getUserMedia(constraints);
-            mostrarVideo(localStream, userName);
-            document.getElementById("controls").style.display = "block";
+            try {
+                let constraints = { video: true, audio: true };
+                localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                mostrarVideo(localStream, userName);
+                document.getElementById("controls").style.display = "block";
+            } catch (error) {
+                alert("Error al acceder a la cámara o micrófono");
+            }
         }
         
         function mostrarVideo(stream, id) {
@@ -135,12 +139,17 @@
                 if (user === userName) {
                     mostrarVideo(localStream, user);
                 } else {
-                    let video = document.createElement("video");
+                    let video = document.createElement("div");
                     video.id = user;
-                    video.innerText = user;
+                    video.innerText = "Esperando video de " + user;
                     video.style.width = "300px";
                     video.style.height = "200px";
                     video.style.background = "gray";
+                    video.style.color = "white";
+                    video.style.display = "flex";
+                    video.style.alignItems = "center";
+                    video.style.justifyContent = "center";
+                    video.style.borderRadius = "10px";
                     document.getElementById("videos").appendChild(video);
                 }
             });
