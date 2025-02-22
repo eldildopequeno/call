@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Llamadas con Firebase</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js"></script>
+    <script>
+        // Configuración de Firebase
+        const firebaseConfig = {
+            apiKey: "BKLyJFYREVkvnHCELpDH2sXCnJ6HA4KtZZ6Z_YOKQizNSVPDaeAGatCc-YOO81JWxGIJWTxP6mvTSW1jVCwoSWs", 
+            authDomain: "llamadas-20257.firebaseapp.com",
+            databaseURL: "https://llamadas-20257-default-rtdb.firebaseio.com",
+            projectId: "llamadas-20257",
+            storageBucket: "llamadas-20257.appspot.com",
+            messagingSenderId: "943167410469",
+            appId: "1:943167410469:web:XXXXXXXXXXXXX"
+        };
+
+        // Inicializa Firebase
+        firebase.initializeApp(firebaseConfig);
+    </script>
+</head>
+<body>
+    <h1>Llamadas con Firebase</h1>
+    <p>Tu ID de llamada: <span id="callId"></span></p>
+    <input type="text" id="inputCallId" placeholder="Ingrese ID para llamar">
+    <button onclick="startCall()">Llamar</button>
+    <audio id="remoteAudio" controls autoplay></audio>
+
+    <script>
+        // Generación de ID único
+        function generateId() {
+            return Math.random().toString(36).substring(2, 8).toUpperCase();
+        }
+
+        // Guarda los datos de la llamada en Firebase
+        function startCall() {
+            const callId = generateId(); // Genera un ID único para la llamada
+            document.getElementById("callId").innerText = callId;  // Muestra el ID en la página
+
+            // Referencia a la base de datos
+            const callRef = firebase.database().ref('calls/' + callId);
+
+            // Guarda los datos de la llamada en Firebase
+            callRef.set({
+                active: true,
+                generatedAt: Date.now(),  // Marca de tiempo cuando se genera la llamada
+                recordedAt: null          // Por ahora no está grabada
+            }).then(() => {
+                console.log("Llamada creada con ID:", callId);
+            }).catch(error => {
+                console.error("Error al crear llamada:", error);
+            });
+
+            // Aquí puedes agregar la lógica para hacer la llamada real, si es necesario
+        }
+    </script>
+</body>
+</html>
