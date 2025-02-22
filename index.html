@@ -97,6 +97,12 @@
             peerConnection.ontrack = (event) => {
                 mostrarVideo(event.streams[0], usuarioRemoto);
             };
+            
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    updateDoc(salaRef, { [`candidates_${usuarioId}`]: arrayUnion(event.candidate.toJSON()) });
+                }
+            };
         }
         
         window.leaveRoom = async function() {
