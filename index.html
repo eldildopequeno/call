@@ -6,7 +6,7 @@
     <title>Videollamada con Firebase</title>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-firestore.js";
         
         const firebaseConfig = {
             apiKey: "AIzaSyCwBjwI7CtqsGbNyrEgAGBb6dxylfCeRsE",
@@ -49,7 +49,7 @@
             roomId = prompt("Introduce un ID para la sala:");
             if (!roomId) return;
             let salaRef = doc(db, "salas", roomId);
-            await setDoc(salaRef, { usuarios: [], chat: [] });
+            await setDoc(salaRef, { usuarios: [], chat: [], señales: {} });
             joinRoom();
         };
         
@@ -98,6 +98,12 @@
             peerConnection.ontrack = (event) => {
                 mostrarVideo(event.streams[0], usuarioRemoto);
             };
+            
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    updateDoc(salaRef, { [`señales.${usuarioId}`]: arrayUnion(event.candidate.toJSON()) });
+                }
+            };
         }
         
         window.enviarMensaje = async function() {
@@ -122,44 +128,6 @@
             });
         }
     </script>
-    <style>
-        body {
-            background-color: #2c2c2c;
-            color: white;
-            text-align: center;
-            font-family: Arial, sans-serif;
-            padding: 20px;
-        }
-        button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            margin: 10px;
-            cursor: pointer;
-            border-radius: 10px;
-        }
-        #videos {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 20px;
-        }
-        video {
-            width: 300px;
-            height: 200px;
-            background: black;
-            border-radius: 10px;
-        }
-        #chatBox {
-            background: #444;
-            padding: 10px;
-            margin: 10px;
-            border-radius: 5px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-    </style>
 </head>
 <body>
     <h1>Videollamada</h1>
