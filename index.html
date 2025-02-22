@@ -120,19 +120,12 @@
         window.toggleMic = function() {
             let audioTrack = localStream.getAudioTracks()[0];
             audioTrack.enabled = !audioTrack.enabled;
-            reproducirSonido();
         };
         
         window.toggleCam = function() {
             let videoTrack = localStream.getVideoTracks()[0];
             videoTrack.enabled = !videoTrack.enabled;
-            reproducirSonido();
         };
-        
-        function reproducirSonido() {
-            let audio = new Audio("https://www.soundjay.com/button/beep-07.wav");
-            audio.play();
-        }
     </script>
     <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
     <style>
