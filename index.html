@@ -73,26 +73,23 @@
     <script>
         let localStream;
         let roomId;
-        let userName = prompt("Ingresa tu nombre:");
         
         async function solicitarPermisos() {
             try {
                 let constraints = { video: true, audio: true };
                 localStream = await navigator.mediaDevices.getUserMedia(constraints);
-                mostrarVideo(localStream, userName);
+                mostrarVideo(localStream);
                 document.getElementById("controls").style.display = "block";
             } catch (error) {
                 alert("Error al acceder a la cámara o micrófono");
             }
         }
         
-        function mostrarVideo(stream, id) {
+        function mostrarVideo(stream) {
             let video = document.createElement("video");
-            video.id = id;
             video.srcObject = stream;
             video.autoplay = true;
             video.playsInline = true;
-            video.setAttribute("data-user", id);
             document.getElementById("videos").appendChild(video);
         }
         
@@ -120,7 +117,7 @@
             document.getElementById("roomInfo").innerText = "Sala ID: " + roomId;
             await solicitarPermisos();
             
-            await updateDoc(salaRef, { usuarios: arrayUnion(userName) });
+            await updateDoc(salaRef, { usuarios: arrayUnion(roomId) });
             escucharUsuarios();
         }
         
@@ -136,22 +133,7 @@
         function actualizarVideos(usuarios) {
             document.getElementById("videos").innerHTML = "";
             usuarios.forEach(user => {
-                if (user === userName) {
-                    mostrarVideo(localStream, user);
-                } else {
-                    let video = document.createElement("div");
-                    video.id = user;
-                    video.innerText = "Esperando video de " + user;
-                    video.style.width = "300px";
-                    video.style.height = "200px";
-                    video.style.background = "gray";
-                    video.style.color = "white";
-                    video.style.display = "flex";
-                    video.style.alignItems = "center";
-                    video.style.justifyContent = "center";
-                    video.style.borderRadius = "10px";
-                    document.getElementById("videos").appendChild(video);
-                }
+                mostrarVideo(localStream);
             });
         }
         
