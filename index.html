@@ -106,12 +106,13 @@
                 return;
             }
 
-            // Guarda la llamada en Firebase
+            // Guarda la llamada en Firebase con la estructura solicitada
             const callRef = firebase.database().ref('calls/' + currentCallId);
             callRef.set({
                 active: true,
-                generatedAt: Date.now(),
-                recordedAt: null
+                userA: true,
+                userB: false,
+                createdAt: Date.now()
             }).then(() => {
                 console.log("Llamada creada con ID:", currentCallId);
             }).catch(error => {
@@ -132,7 +133,18 @@
                 const callData = snapshot.val();
                 if (callData && callData.active) {
                     console.log("Llamada encontrada. Conectando...");
-                    // Aquí puedes implementar la lógica para conectarte a la llamada
+
+                    // Actualiza el estado del usuario que se une a la llamada
+                    callRef.update({
+                        userB: true
+                    }).then(() => {
+                        console.log("Usuario B ha ingresado a la llamada.");
+                    }).catch(error => {
+                        console.error("Error al actualizar la llamada:", error);
+                    });
+
+                    // Aquí puedes agregar la lógica para conectarte a la llamada
+
                 } else {
                     alert("El ID de llamada ingresado no es válido o está inactivo.");
                 }
