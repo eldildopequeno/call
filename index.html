@@ -26,14 +26,38 @@
         const peerConnections = {};
         const peerConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
         
-        async function solicitarPermisos() {
-            try {
-                // Solicitamos permiso para la cámara y el micrófono, con resolución optimizada para iOS
-                localStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "user" },  // Preferir cámara frontal
-                    audio: true 
-                });
+        // Función para comprobar si está en pantalla completa
+        function esPantallaCompleta() {
+            return (
+                document.fullscreenElement || 
+                document.webkitFullscreenElement || 
+                document.mozFullScreenElement || 
+                document.msFullscreenElement
+            );
+        }
 
+        // Función para activar pantalla completa
+        function activarPantallaCompleta() {
+            const elemento = document.documentElement; // Usamos el elemento <html> para que toda la página se ponga en pantalla completa
+            if (elemento.requestFullscreen) {
+                elemento.requestFullscreen();
+            } else if (elemento.webkitRequestFullscreen) { // Safari
+                elemento.webkitRequestFullscreen();
+            } else if (elemento.mozRequestFullScreen) { // Firefox
+                elemento.mozRequestFullScreen();
+            } else if (elemento.msRequestFullscreen) { // IE/Edge
+                elemento.msRequestFullscreen();
+            }
+        }
+
+        async function solicitarPermisos() {
+            // Verificar si estamos en pantalla completa, y activarla si no
+            if (!esPantallaCompleta()) {
+                activarPantallaCompleta();
+            }
+
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 mostrarVideo(localStream, 'Tú');
                 document.getElementById("controls").style.display = "block";
             } catch (error) {
@@ -45,11 +69,29 @@
             let video = document.createElement("video");
             video.srcObject = stream;
             video.autoplay = true;
-            video.muted = usuario === 'Tú';  // No escuchar tu propio video
+            video.muted = usuario === 'Tú';
             video.setAttribute("data-usuario", usuario);
             document.getElementById("videos").appendChild(video);
         }
 
+        // Inicia la conexión y se encarga de manejar ICE candidates
+        function escucharSeñales(salaRef, usuarioRemoto) {
+            onSnapshot(salaRef, (snapshot) => {
+                const data = snapshot.data();
+                const señales = data.señales || {};
+                
+                if (señales[usuarioRemoto]) {
+                    señales[usuarioRemoto].forEach(async (candidate) => {
+                        try {
+                            await peerConnections[usuarioRemoto].addIceCandidate(candidate);
+                        } catch (error) {
+                            console.error("Error agregando candidato ICE: ", error);
+                        }
+                    });
+                }
+            });
+        }
+        
         window.crearSala = async function() {
             roomId = prompt("Introduce un ID para la sala:");
             if (!roomId) return;
@@ -81,6 +123,7 @@
             escucharChat(salaRef);
         };
         
+        // Se conecta con los usuarios y gestiona la señalización de la conexión
         function conectarConUsuarios(salaRef) {
             onSnapshot(salaRef, (snapshot) => {
                 const data = snapshot.data();
@@ -94,6 +137,7 @@
             });
         }
 
+        // Establece la conexión WebRTC
         async function iniciarConexion(usuarioRemoto, salaRef) {
             const peerConnection = new RTCPeerConnection(peerConfig);
             peerConnections[usuarioRemoto] = peerConnection;
@@ -116,6 +160,35 @@
                 updateDoc(salaRef, { [`señales.${usuarioRemoto}`]: arrayUnion(offer.toJSON()) });
             } catch (error) {
                 console.error("Error creando oferta: ", error);
+            }
+            
+            escucharSeñales(salaRef, usuarioRemoto);
+        }
+        
+        // Responde a la conexión de otro usuario
+        async function responderConexion(usuarioRemoto, salaRef, offer) {
+            const peerConnection = new RTCPeerConnection(peerConfig);
+            peerConnections[usuarioRemoto] = peerConnection;
+            
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            
+            peerConnection.ontrack = (event) => {
+                mostrarVideo(event.streams[0], usuarioRemoto);
+            };
+            
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    updateDoc(salaRef, { [`señales.${usuarioId}`]: arrayUnion(event.candidate.toJSON()) });
+                }
+            };
+            
+            try {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                updateDoc(salaRef, { [`señales.${usuarioRemoto}`]: arrayUnion(answer.toJSON()) });
+            } catch (error) {
+                console.error("Error respondiendo a oferta: ", error);
             }
         }
 
@@ -152,7 +225,7 @@
             height: 100vh;
             margin: 0;
         }
-
+        
         h1 {
             color: #7289da;
             margin-bottom: 20px;
@@ -205,26 +278,30 @@
         }
 
         #chatBox p {
-            margin: 5px 0;
-            font-size: 14px;
+            margin: 5px;
+            color: #ddd;
         }
 
-        #chatInput {
-            width: 80%;
+        #controls {
+            display: none;
+            margin-top: 20px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Videollamada</h1>
-        <p id="roomInfo">No estás en una sala</p>
-        <input id="roomId" placeholder="ID de sala">
-        <button onclick="crearSala()">Crear Sala</button>
-        <button id="joinLeaveButton" onclick="joinRoom()">Unirse</button>
-        <div id="chatBox"></div>
-        <input id="chatInput" placeholder="Escribe un mensaje">
-        <button onclick="enviarMensaje()">Enviar</button>
+        <h1>Videollamada con Firebase</h1>
+        <input type="text" id="roomId" placeholder="ID de sala">
+        <button onclick="joinRoom()">Unirse a la sala</button>
+        <button onclick="crearSala()">Crear nueva sala</button>
+        <div id="roomInfo"></div>
         <div id="videos"></div>
+        <div id="controls">
+            <textarea id="chatInput" placeholder="Escribe un mensaje..."></textarea><br>
+            <button onclick="enviarMensaje()">Enviar</button>
+            <div id="chatBox"></div>
+            <button id="joinLeaveButton" onclick="leaveRoom()">Salir</button>
+        </div>
     </div>
 </body>
 </html>
