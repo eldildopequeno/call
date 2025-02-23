@@ -9,7 +9,7 @@
     <script type="module">
         // Importar módulos de Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-        import { getDatabase, ref, set, push, get, child, update, remove } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js";
+        import { getDatabase, ref, set, push, get, child, update, remove, onValue } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js";
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 
         // Configuración de Firebase
@@ -28,10 +28,102 @@
         const db = getDatabase(app);  // Realtime Database
         const auth = getAuth(app);    // Autenticación
     </script>
+
+    <style>
+        /* Estilos de la página */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #36393f;
+            color: white;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            width: 80%;
+            max-width: 1200px;
+            background-color: #2f3136;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 20px;
+            color: #7289da;
+            text-align: center;
+        }
+
+        input, textarea, button {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border: none;
+            width: 100%;
+            font-size: 16px;
+            background-color: #40444b;
+            color: white;
+        }
+
+        input:focus, textarea:focus, button:focus {
+            outline: none;
+            border: 2px solid #7289da;
+        }
+
+        button {
+            background-color: #7289da;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #5b6e9f;
+        }
+
+        #roomInfo, #chatBox {
+            margin-top: 20px;
+            font-size: 16px;
+        }
+
+        #chatBox p {
+            padding: 5px;
+            background-color: #444b53;
+            border-radius: 5px;
+            margin-bottom: 5px;
+        }
+
+        #videos {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        video {
+            width: 320px;
+            height: 240px;
+            border-radius: 8px;
+        }
+
+        #joinLeaveButton {
+            width: 100%;
+            background-color: #ff5555;
+        }
+
+        #joinLeaveButton:hover {
+            background-color: #ff4444;
+        }
+    </style>
 </head>
 <body>
+
     <div class="container">
         <h1>Videollamada con Firebase</h1>
+
         <input type="text" id="userIdInput" placeholder="Tu ID de usuario">
         <button onclick="guardarID()">Guardar ID</button>
 
@@ -52,7 +144,7 @@
         <button id="joinLeaveButton" onclick="leaveRoom()">Salir</button>
     </div>
 
-    <script type="module">
+    <script>
         let roomId;
         let usuarioId;
         let localStream;
@@ -230,27 +322,5 @@
         }
     </script>
 
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #2f3136;
-            color: white;
-            padding: 20px;
-        }
-        input, textarea, button {
-            margin: 10px 0;
-        }
-        #videos {
-            display: flex;
-            flex-wrap: wrap;
-            margin-top: 20px;
-        }
-        video {
-            margin-right: 10px;
-            border-radius: 5px;
-            width: 320px;
-            height: 240px;
-        }
-    </style>
 </body>
 </html>
