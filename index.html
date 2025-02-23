@@ -4,18 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Videollamada con Firebase</title>
-    
-    <!-- Firebase JS SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
 
-    <script>
+    <!-- Firebase JS SDK (versión modular) -->
+    <script type="module">
+        // Importar módulos de Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+        import { getDatabase, ref, set, push, get, child, update, remove } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+
         // Configuración de Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyCwBjwI7CtqsGbNyrEgAGBb6dxylfCeRsE",
             authDomain: "llamada-5c0c6.firebaseapp.com",
-            databaseURL: "https://llamada-5c0c6-default-rtdb.firebaseio.com", // URL de la base de datos en tiempo real
+            databaseURL: "https://llamada-5c0c6-default-rtdb.firebaseio.com",
             projectId: "llamada-5c0c6",
             storageBucket: "llamada-5c0c6.appspot.com",
             messagingSenderId: "715831354513",
@@ -23,42 +24,36 @@
         };
 
         // Inicialización de Firebase
-        const app = firebase.initializeApp(firebaseConfig);
-        const database = firebase.database(app); // Realtime Database
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);  // Realtime Database
+        const auth = getAuth(app);    // Autenticación
     </script>
 </head>
 <body>
-    <!-- Contenido de la página -->
     <div class="container">
         <h1>Videollamada con Firebase</h1>
-
-        <!-- Inputs para ID y Nombre -->
         <input type="text" id="userIdInput" placeholder="Tu ID de usuario">
         <input type="text" id="userNameInput" placeholder="Tu nombre de usuario">
         <button onclick="guardarID()">Guardar ID</button>
 
         <br><br>
 
-        <!-- Input para el ID de la sala -->
         <input type="text" id="roomIdInput" placeholder="ID de sala">
         <button onclick="unirseASala()">Unirse a la sala</button>
         <button onclick="crearSala()">Crear nueva sala</button>
 
         <div id="roomInfo"></div>
-
         <div id="videos"></div>
 
         <br><br>
 
-        <!-- Controles para el chat -->
         <textarea id="chatInput" placeholder="Escribe un mensaje..."></textarea><br>
         <button onclick="enviarMensaje()">Enviar</button>
-
         <div id="chatBox"></div>
         <button id="joinLeaveButton" onclick="leaveRoom()">Salir</button>
     </div>
 
-    <script>
+    <script type="module">
         let roomId;
         let usuarioId;
         let localStream;
@@ -72,7 +67,7 @@
 
             if (userId && userName) {
                 // Guardar en Realtime Database
-                firebase.database().ref('users/' + userId).set({
+                set(ref(db, 'users/' + userId), {
                     id: userId,
                     name: userName
                 }).then(() => {
@@ -89,8 +84,8 @@
         function crearSala() {
             roomId = prompt("Introduce un ID para la sala:");
             if (!roomId) return;
-            let salaRef = firebase.database().ref('salas/' + roomId);
-            salaRef.set({
+            let salaRef = ref(db, 'salas/' + roomId);
+            set(salaRef, {
                 usuarios: [],
                 chat: [],
                 señales: {}
@@ -106,16 +101,16 @@
         function unirseASala() {
             roomId = document.getElementById("roomIdInput").value;
             if (!roomId) return alert("Ingresa un ID de sala válido");
-            const salaRef = firebase.database().ref('salas/' + roomId);
+            const salaRef = ref(db, 'salas/' + roomId);
 
-            salaRef.once('value', (snapshot) => {
+            get(salaRef).then(snapshot => {
                 if (snapshot.exists()) {
                     document.getElementById("roomInfo").innerText = "Sala ID: " + roomId;
                     document.getElementById("joinLeaveButton").innerText = "Salir";
                     document.getElementById("joinLeaveButton").setAttribute("onclick", "leaveRoom()");
 
                     usuarioId = "usuario" + Math.floor(Math.random() * 1000);
-                    salaRef.child('usuarios').push(usuarioId).then(() => {
+                    push(ref(salaRef, 'usuarios')).set(usuarioId).then(() => {
                         alert("Te has unido a la sala!");
                     }).catch(error => {
                         console.error("Error al unirse a la sala:", error);
@@ -131,11 +126,12 @@
 
         // Función para dejar la sala
         function leaveRoom() {
-            const salaRef = firebase.database().ref('salas/' + roomId);
-            salaRef.child('usuarios').once('value', (snapshot) => {
+            const salaRef = ref(db, 'salas/' + roomId);
+            const usuariosRef = ref(salaRef, 'usuarios');
+            get(usuariosRef).then(snapshot => {
                 snapshot.forEach((childSnapshot) => {
                     if (childSnapshot.val() === usuarioId) {
-                        childSnapshot.ref.remove().then(() => {
+                        remove(childSnapshot.ref).then(() => {
                             alert("Has salido de la sala.");
                         }).catch(error => {
                             console.error("Error al salir de la sala:", error);
@@ -149,8 +145,8 @@
         function enviarMensaje() {
             const mensaje = document.getElementById("chatInput").value;
             if (mensaje) {
-                const chatRef = firebase.database().ref('salas/' + roomId + '/chat');
-                chatRef.push({
+                const chatRef = ref(db, 'salas/' + roomId + '/chat');
+                push(chatRef, {
                     usuario: usuarioId,
                     mensaje: mensaje,
                     timestamp: Date.now()
@@ -164,23 +160,27 @@
 
         // Función para escuchar los mensajes en tiempo real
         function escucharChat(salaRef) {
-            const chatRef = salaRef.child('chat');
-            chatRef.on('child_added', (snapshot) => {
-                const mensaje = snapshot.val();
-                const mensajeElement = document.createElement('p');
-                mensajeElement.textContent = `${mensaje.usuario}: ${mensaje.mensaje}`;
-                document.getElementById("chatBox").appendChild(mensajeElement);
+            const chatRef = ref(salaRef, 'chat');
+            onValue(chatRef, (snapshot) => {
+                snapshot.forEach((childSnapshot) => {
+                    const mensaje = childSnapshot.val();
+                    const mensajeElement = document.createElement('p');
+                    mensajeElement.textContent = `${mensaje.usuario}: ${mensaje.mensaje}`;
+                    document.getElementById("chatBox").appendChild(mensajeElement);
+                });
             });
         }
 
         // Función para gestionar la señalización con los usuarios
         function conectarConUsuarios(salaRef) {
-            const salaRefUsuarios = salaRef.child('usuarios');
-            salaRefUsuarios.on('child_added', (snapshot) => {
-                const usuario = snapshot.val();
-                if (usuario !== usuarioId && !peerConnections[usuario]) {
-                    iniciarConexion(usuario, salaRef);
-                }
+            const salaRefUsuarios = ref(salaRef, 'usuarios');
+            onValue(salaRefUsuarios, (snapshot) => {
+                snapshot.forEach((childSnapshot) => {
+                    const usuario = childSnapshot.val();
+                    if (usuario !== usuarioId && !peerConnections[usuario]) {
+                        iniciarConexion(usuario, salaRef);
+                    }
+                });
             });
         }
 
@@ -189,21 +189,23 @@
             const peerConnection = new RTCPeerConnection(peerConfig);
             peerConnections[usuarioRemoto] = peerConnection;
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-            
+
             peerConnection.ontrack = (event) => {
                 mostrarVideo(event.streams[0], usuarioRemoto);
             };
-            
+
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    salaRef.child('señales').child(usuarioId).push(event.candidate.toJSON());
+                    const signalRef = ref(salaRef, 'señales/' + usuarioId);
+                    push(signalRef, event.candidate.toJSON());
                 }
             };
 
             try {
                 const offer = await peerConnection.createOffer();
                 await peerConnection.setLocalDescription(offer);
-                salaRef.child('señales').child(usuarioRemoto).push(offer.toJSON());
+                const offerRef = ref(salaRef, 'señales/' + usuarioRemoto);
+                push(offerRef, offer.toJSON());
             } catch (error) {
                 console.error("Error creando la oferta:", error);
             }
