@@ -33,7 +33,6 @@
     <div class="container">
         <h1>Videollamada con Firebase</h1>
         <input type="text" id="userIdInput" placeholder="Tu ID de usuario">
-        <input type="text" id="userNameInput" placeholder="Tu nombre de usuario">
         <button onclick="guardarID()">Guardar ID</button>
 
         <br><br>
@@ -63,20 +62,18 @@
         // Función para guardar el ID de usuario en Firebase
         function guardarID() {
             const userId = document.getElementById("userIdInput").value;
-            const userName = document.getElementById("userNameInput").value;
 
-            if (userId && userName) {
+            if (userId) {
                 // Guardar en Realtime Database
                 set(ref(db, 'users/' + userId), {
-                    id: userId,
-                    name: userName
+                    id: userId
                 }).then(() => {
                     alert("Usuario guardado correctamente!");
                 }).catch(error => {
                     console.error("Error al guardar el ID:", error);
                 });
             } else {
-                alert("Por favor ingresa un ID y un nombre.");
+                alert("Por favor ingresa un ID.");
             }
         }
 
