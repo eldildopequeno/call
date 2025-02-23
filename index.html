@@ -38,7 +38,7 @@
 
         // Función para activar pantalla completa
         function activarPantallaCompleta() {
-            const elemento = document.documentElement; // Usamos el elemento <html> para que toda la página se ponga en pantalla completa
+            const elemento = document.documentElement;
             if (window.innerWidth > 600) {  // Solo intentamos pantalla completa en pantallas grandes
                 if (elemento.requestFullscreen) {
                     elemento.requestFullscreen();
@@ -259,4 +259,44 @@
         #videos {
             display: flex;
             flex-wrap: wrap;
-            justify-content: center
+            justify-content: center;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        video {
+            max-width: 100%;
+            height: auto;
+            border: 2px solid #7289da;
+            border-radius: 10px;
+            margin: 10px;
+        }
+
+        #chatBox {
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: #40444b;
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Videollamada con Firebase</h1>
+        <div id="controls">
+            <input type="text" id="roomId" placeholder="ID de la sala" />
+            <button onclick="joinRoom()">Unirse a la sala</button>
+            <button onclick="crearSala()">Crear sala</button>
+            <button id="joinLeaveButton">Unirse/Salir</button>
+        </div>
+        <div id="roomInfo"></div>
+        <div id="videos"></div>
+        <div id="chatBox"></div>
+        <input type="text" id="chatInput" placeholder="Escribe un mensaje" />
+        <button onclick="enviarMensaje()">Enviar mensaje</button>
+    </div>
+</body>
+</html>
