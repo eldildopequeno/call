@@ -39,14 +39,16 @@
         // Función para activar pantalla completa
         function activarPantallaCompleta() {
             const elemento = document.documentElement; // Usamos el elemento <html> para que toda la página se ponga en pantalla completa
-            if (elemento.requestFullscreen) {
-                elemento.requestFullscreen();
-            } else if (elemento.webkitRequestFullscreen) { // Safari
-                elemento.webkitRequestFullscreen();
-            } else if (elemento.mozRequestFullScreen) { // Firefox
-                elemento.mozRequestFullScreen();
-            } else if (elemento.msRequestFullscreen) { // IE/Edge
-                elemento.msRequestFullscreen();
+            if (window.innerWidth > 600) {  // Solo intentamos pantalla completa en pantallas grandes
+                if (elemento.requestFullscreen) {
+                    elemento.requestFullscreen();
+                } else if (elemento.webkitRequestFullscreen) { // Safari
+                    elemento.webkitRequestFullscreen();
+                } else if (elemento.mozRequestFullScreen) { // Firefox
+                    elemento.mozRequestFullScreen();
+                } else if (elemento.msRequestFullscreen) { // IE/Edge
+                    elemento.msRequestFullscreen();
+                }
             }
         }
 
@@ -61,7 +63,7 @@
                 mostrarVideo(localStream, 'Tú');
                 document.getElementById("controls").style.display = "block";
             } catch (error) {
-                alert("No se pudo acceder a la cámara/micrófono");
+                alert("No se pudo acceder a la cámara/micrófono. Por favor asegúrate de haber dado los permisos.");
             }
         }
         
@@ -178,24 +180,15 @@
             
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    // Solo se añaden los candidatos ICE si la descripción remota está lista
-                    if (peerConnection.remoteDescription) {
-                        updateDoc(salaRef, { [`señales.${usuarioId}`]: arrayUnion(event.candidate.toJSON()) });
-                    }
+                    updateDoc(salaRef, { [`señales.${usuarioId}`]: arrayUnion(event.candidate.toJSON()) });
                 }
             };
             
             try {
-                // Se establece la descripción remota (oferta recibida)
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-
-                // Luego, se crea una respuesta (answer) y se establece como descripción local
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
-
-                // Enviar la respuesta al otro usuario
                 updateDoc(salaRef, { [`señales.${usuarioRemoto}`]: arrayUnion(answer.toJSON()) });
-
             } catch (error) {
                 console.error("Error respondiendo a oferta: ", error);
             }
@@ -242,4 +235,28 @@
 
         .container {
             text-align: center;
-            background-color: #292b
+            background-color: #292b2f;
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 600px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        input, button {
+            padding: 10px;
+            margin: 10px;
+            border-radius: 5px;
+            border: 1px solid #7289da;
+            background-color: #40444b;
+            color: white;
+        }
+
+        button:hover {
+            background-color: #7289da;
+        }
+
+        #videos {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center
