@@ -4,69 +4,212 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Videollamada con Firebase</title>
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-firestore.js";
-        
+    
+    <!-- Firebase JS SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
+
+    <script>
+        // Configuración de Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyCwBjwI7CtqsGbNyrEgAGBb6dxylfCeRsE",
             authDomain: "llamada-5c0c6.firebaseapp.com",
+            databaseURL: "https://llamada-5c0c6-default-rtdb.firebaseio.com", // URL de la base de datos en tiempo real
             projectId: "llamada-5c0c6",
             storageBucket: "llamada-5c0c6.appspot.com",
             messagingSenderId: "715831354513",
             appId: "1:715831354513:web:7ef42c86476e4e5b304b30"
         };
-        
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        
-        let localStream;
-        let roomId = null;
+
+        // Inicialización de Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const database = firebase.database(app); // Realtime Database
+    </script>
+</head>
+<body>
+    <!-- Contenido de la página -->
+    <div class="container">
+        <h1>Videollamada con Firebase</h1>
+
+        <!-- Inputs para ID y Nombre -->
+        <input type="text" id="userIdInput" placeholder="Tu ID de usuario">
+        <input type="text" id="userNameInput" placeholder="Tu nombre de usuario">
+        <button onclick="guardarID()">Guardar ID</button>
+
+        <br><br>
+
+        <!-- Input para el ID de la sala -->
+        <input type="text" id="roomIdInput" placeholder="ID de sala">
+        <button onclick="unirseASala()">Unirse a la sala</button>
+        <button onclick="crearSala()">Crear nueva sala</button>
+
+        <div id="roomInfo"></div>
+
+        <div id="videos"></div>
+
+        <br><br>
+
+        <!-- Controles para el chat -->
+        <textarea id="chatInput" placeholder="Escribe un mensaje..."></textarea><br>
+        <button onclick="enviarMensaje()">Enviar</button>
+
+        <div id="chatBox"></div>
+        <button id="joinLeaveButton" onclick="leaveRoom()">Salir</button>
+    </div>
+
+    <script>
+        let roomId;
         let usuarioId;
-        const peerConnections = {};
+        let localStream;
+        let peerConnections = {};
         const peerConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
-        
-        // Función para comprobar si está en pantalla completa
-        function esPantallaCompleta() {
-            return (
-                document.fullscreenElement || 
-                document.webkitFullscreenElement || 
-                document.mozFullScreenElement || 
-                document.msFullscreenElement
-            );
+
+        // Función para guardar el ID de usuario en Firebase
+        function guardarID() {
+            const userId = document.getElementById("userIdInput").value;
+            const userName = document.getElementById("userNameInput").value;
+
+            if (userId && userName) {
+                // Guardar en Realtime Database
+                firebase.database().ref('users/' + userId).set({
+                    id: userId,
+                    name: userName
+                }).then(() => {
+                    alert("Usuario guardado correctamente!");
+                }).catch(error => {
+                    console.error("Error al guardar el ID:", error);
+                });
+            } else {
+                alert("Por favor ingresa un ID y un nombre.");
+            }
         }
 
-        // Función para activar pantalla completa
-        function activarPantallaCompleta() {
-            const elemento = document.documentElement;
-            if (window.innerWidth > 600) {  // Solo intentamos pantalla completa en pantallas grandes
-                if (elemento.requestFullscreen) {
-                    elemento.requestFullscreen();
-                } else if (elemento.webkitRequestFullscreen) { // Safari
-                    elemento.webkitRequestFullscreen();
-                } else if (elemento.mozRequestFullScreen) { // Firefox
-                    elemento.mozRequestFullScreen();
-                } else if (elemento.msRequestFullscreen) { // IE/Edge
-                    elemento.msRequestFullscreen();
+        // Función para crear una nueva sala
+        function crearSala() {
+            roomId = prompt("Introduce un ID para la sala:");
+            if (!roomId) return;
+            let salaRef = firebase.database().ref('salas/' + roomId);
+            salaRef.set({
+                usuarios: [],
+                chat: [],
+                señales: {}
+            }).then(() => {
+                alert("Sala creada con éxito!");
+                unirseASala();
+            }).catch(error => {
+                console.error("Error creando la sala:", error);
+            });
+        }
+
+        // Función para unirse a una sala
+        function unirseASala() {
+            roomId = document.getElementById("roomIdInput").value;
+            if (!roomId) return alert("Ingresa un ID de sala válido");
+            const salaRef = firebase.database().ref('salas/' + roomId);
+
+            salaRef.once('value', (snapshot) => {
+                if (snapshot.exists()) {
+                    document.getElementById("roomInfo").innerText = "Sala ID: " + roomId;
+                    document.getElementById("joinLeaveButton").innerText = "Salir";
+                    document.getElementById("joinLeaveButton").setAttribute("onclick", "leaveRoom()");
+
+                    usuarioId = "usuario" + Math.floor(Math.random() * 1000);
+                    salaRef.child('usuarios').push(usuarioId).then(() => {
+                        alert("Te has unido a la sala!");
+                    }).catch(error => {
+                        console.error("Error al unirse a la sala:", error);
+                    });
+                    conectarConUsuarios(salaRef);
+                    escucharChat(salaRef);
+                    solicitarPermisos();
+                } else {
+                    alert("La sala no existe.");
                 }
+            });
+        }
+
+        // Función para dejar la sala
+        function leaveRoom() {
+            const salaRef = firebase.database().ref('salas/' + roomId);
+            salaRef.child('usuarios').once('value', (snapshot) => {
+                snapshot.forEach((childSnapshot) => {
+                    if (childSnapshot.val() === usuarioId) {
+                        childSnapshot.ref.remove().then(() => {
+                            alert("Has salido de la sala.");
+                        }).catch(error => {
+                            console.error("Error al salir de la sala:", error);
+                        });
+                    }
+                });
+            });
+        }
+
+        // Función para enviar un mensaje al chat
+        function enviarMensaje() {
+            const mensaje = document.getElementById("chatInput").value;
+            if (mensaje) {
+                const chatRef = firebase.database().ref('salas/' + roomId + '/chat');
+                chatRef.push({
+                    usuario: usuarioId,
+                    mensaje: mensaje,
+                    timestamp: Date.now()
+                }).then(() => {
+                    document.getElementById("chatInput").value = "";
+                }).catch(error => {
+                    console.error("Error al enviar el mensaje:", error);
+                });
             }
         }
 
-        async function solicitarPermisos() {
-            // Verificar si estamos en pantalla completa, y activarla si no
-            if (!esPantallaCompleta()) {
-                activarPantallaCompleta();
-            }
+        // Función para escuchar los mensajes en tiempo real
+        function escucharChat(salaRef) {
+            const chatRef = salaRef.child('chat');
+            chatRef.on('child_added', (snapshot) => {
+                const mensaje = snapshot.val();
+                const mensajeElement = document.createElement('p');
+                mensajeElement.textContent = `${mensaje.usuario}: ${mensaje.mensaje}`;
+                document.getElementById("chatBox").appendChild(mensajeElement);
+            });
+        }
+
+        // Función para gestionar la señalización con los usuarios
+        function conectarConUsuarios(salaRef) {
+            const salaRefUsuarios = salaRef.child('usuarios');
+            salaRefUsuarios.on('child_added', (snapshot) => {
+                const usuario = snapshot.val();
+                if (usuario !== usuarioId && !peerConnections[usuario]) {
+                    iniciarConexion(usuario, salaRef);
+                }
+            });
+        }
+
+        // Función para iniciar la conexión WebRTC
+        async function iniciarConexion(usuarioRemoto, salaRef) {
+            const peerConnection = new RTCPeerConnection(peerConfig);
+            peerConnections[usuarioRemoto] = peerConnection;
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            
+            peerConnection.ontrack = (event) => {
+                mostrarVideo(event.streams[0], usuarioRemoto);
+            };
+            
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    salaRef.child('señales').child(usuarioId).push(event.candidate.toJSON());
+                }
+            };
 
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                mostrarVideo(localStream, 'Tú');
-                document.getElementById("controls").style.display = "block";
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                salaRef.child('señales').child(usuarioRemoto).push(offer.toJSON());
             } catch (error) {
-                alert("No se pudo acceder a la cámara/micrófono. Por favor asegúrate de haber dado los permisos.");
+                console.error("Error creando la oferta:", error);
             }
         }
-        
+
+        // Función para mostrar el video local
         function mostrarVideo(stream, usuario) {
             let video = document.createElement("video");
             video.srcObject = stream;
@@ -76,227 +219,39 @@
             document.getElementById("videos").appendChild(video);
         }
 
-        // Inicia la conexión y se encarga de manejar ICE candidates
-        function escucharSeñales(salaRef, usuarioRemoto) {
-            onSnapshot(salaRef, (snapshot) => {
-                const data = snapshot.data();
-                const señales = data.señales || {};
-                
-                if (señales[usuarioRemoto]) {
-                    señales[usuarioRemoto].forEach(async (candidate) => {
-                        try {
-                            await peerConnections[usuarioRemoto].addIceCandidate(candidate);
-                        } catch (error) {
-                            console.error("Error agregando candidato ICE: ", error);
-                        }
-                    });
-                }
-            });
-        }
-        
-        window.crearSala = async function() {
-            roomId = prompt("Introduce un ID para la sala:");
-            if (!roomId) return;
-            let salaRef = doc(db, "salas", roomId);
-            await setDoc(salaRef, { usuarios: [], chat: [], señales: {} });
-            joinRoom();
-        };
-        
-        window.joinRoom = async function() {
-            roomId = document.getElementById("roomId").value;
-            if (!roomId) return alert("Ingresa un ID de sala válido");
-            let salaRef = doc(db, "salas", roomId);
-            let salaSnap = await getDoc(salaRef);
-            
-            if (!salaSnap.exists()) {
-                return alert("Sala no encontrada. Verifica el ID.");
-            }
-            
-            document.getElementById("roomInfo").innerText = "Sala ID: " + roomId;
-            document.getElementById("joinLeaveButton").innerText = "Salir";
-            document.getElementById("joinLeaveButton").setAttribute("onclick", "leaveRoom()");
-            
-            await solicitarPermisos();
-            
-            usuarioId = "usuario" + Math.floor(Math.random() * 1000);
-            await updateDoc(salaRef, { usuarios: arrayUnion(usuarioId) });
-            
-            conectarConUsuarios(salaRef);
-            escucharChat(salaRef);
-        };
-        
-        // Se conecta con los usuarios y gestiona la señalización de la conexión
-        function conectarConUsuarios(salaRef) {
-            onSnapshot(salaRef, (snapshot) => {
-                const data = snapshot.data();
-                const usuarios = data.usuarios || [];
-                
-                usuarios.forEach((usuario) => {
-                    if (usuario !== usuarioId && !peerConnections[usuario]) {
-                        iniciarConexion(usuario, salaRef);
-                    }
-                });
-            });
-        }
-
-        // Establece la conexión WebRTC
-        async function iniciarConexion(usuarioRemoto, salaRef) {
-            const peerConnection = new RTCPeerConnection(peerConfig);
-            peerConnections[usuarioRemoto] = peerConnection;
-            
-            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-            
-            peerConnection.ontrack = (event) => {
-                mostrarVideo(event.streams[0], usuarioRemoto);
-            };
-            
-            peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    updateDoc(salaRef, { [`señales.${usuarioId}`]: arrayUnion(event.candidate.toJSON()) });
-                }
-            };
-            
+        // Solicitar permisos para acceder a la cámara y micrófono
+        async function solicitarPermisos() {
             try {
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-                updateDoc(salaRef, { [`señales.${usuarioRemoto}`]: arrayUnion(offer.toJSON()) });
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                mostrarVideo(localStream, 'Tú');
+                document.getElementById("controls").style.display = "block";
             } catch (error) {
-                console.error("Error creando oferta: ", error);
+                alert("No se pudo acceder a la cámara/micrófono");
             }
-            
-            escucharSeñales(salaRef, usuarioRemoto);
-        }
-        
-        // Responde a la conexión de otro usuario
-        async function responderConexion(usuarioRemoto, salaRef, offer) {
-            const peerConnection = new RTCPeerConnection(peerConfig);
-            peerConnections[usuarioRemoto] = peerConnection;
-            
-            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-            
-            peerConnection.ontrack = (event) => {
-                mostrarVideo(event.streams[0], usuarioRemoto);
-            };
-            
-            peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    updateDoc(salaRef, { [`señales.${usuarioId}`]: arrayUnion(event.candidate.toJSON()) });
-                }
-            };
-            
-            try {
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
-                updateDoc(salaRef, { [`señales.${usuarioRemoto}`]: arrayUnion(answer.toJSON()) });
-            } catch (error) {
-                console.error("Error respondiendo a oferta: ", error);
-            }
-        }
-
-        window.enviarMensaje = async function() {
-            let mensaje = document.getElementById("chatInput").value;
-            if (!mensaje) return;
-            let salaRef = doc(db, "salas", roomId);
-            await updateDoc(salaRef, { chat: arrayUnion({ usuario: usuarioId, mensaje }) });
-            document.getElementById("chatInput").value = "";
-        };
-        
-        function escucharChat(salaRef) {
-            onSnapshot(salaRef, (snapshot) => {
-                const data = snapshot.data();
-                const chat = data.chat || [];
-                let chatBox = document.getElementById("chatBox");
-                chatBox.innerHTML = "";
-                chat.forEach(msg => {
-                    let p = document.createElement("p");
-                    p.textContent = `${msg.usuario}: ${msg.mensaje}`;
-                    chatBox.appendChild(p);
-                });
-            });
         }
     </script>
+
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #2f3136;
             color: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        
-        h1 {
-            color: #7289da;
-            margin-bottom: 20px;
-        }
-
-        .container {
-            text-align: center;
-            background-color: #292b2f;
             padding: 20px;
-            border-radius: 10px;
-            width: 80%;
-            max-width: 600px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
         }
-
-        input, button {
-            padding: 10px;
-            margin: 10px;
-            border-radius: 5px;
-            border: 1px solid #7289da;
-            background-color: #40444b;
-            color: white;
+        input, textarea, button {
+            margin: 10px 0;
         }
-
-        button:hover {
-            background-color: #7289da;
-        }
-
         #videos {
             display: flex;
             flex-wrap: wrap;
-            justify-content: center;
-            width: 100%;
             margin-top: 20px;
         }
-
         video {
-            max-width: 100%;
-            height: auto;
-            border: 2px solid #7289da;
-            border-radius: 10px;
-            margin: 10px;
-        }
-
-        #chatBox {
-            margin-top: 20px;
-            max-height: 200px;
-            overflow-y: auto;
-            background-color: #40444b;
-            padding: 10px;
-            border-radius: 10px;
-            margin-bottom: 20px;
+            margin-right: 10px;
+            border-radius: 5px;
+            width: 320px;
+            height: 240px;
         }
     </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Videollamada con Firebase</h1>
-        <div id="controls">
-            <input type="text" id="roomId" placeholder="ID de la sala" />
-            <button onclick="joinRoom()">Unirse a la sala</button>
-            <button onclick="crearSala()">Crear sala</button>
-            <button id="joinLeaveButton">Unirse/Salir</button>
-        </div>
-        <div id="roomInfo"></div>
-        <div id="videos"></div>
-        <div id="chatBox"></div>
-        <input type="text" id="chatInput" placeholder="Escribe un mensaje" />
-        <button onclick="enviarMensaje()">Enviar mensaje</button>
-    </div>
 </body>
 </html>
